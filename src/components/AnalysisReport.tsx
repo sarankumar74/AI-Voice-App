@@ -1,0 +1,389 @@
+import { FileAudio, ShieldCheck, AlertTriangle, Loader2, Download, Bot, AlertOctagon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { AnalysisResult } from "@/pages/Index";
+import { Button } from "@/components/ui/button";
+import jsPDF from "jspdf";
+
+interface AnalysisReportProps {
+  state: "idle" | "ready" | "analyzing" | "complete" | "failed";
+  result: AnalysisResult | null;
+  showDownload?: boolean;
+}
+
+export const AnalysisReport = ({ state, result, showDownload = true }: AnalysisReportProps) => {
+  const generatePDF = () => {
+    if (!result) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let yPos = 20;
+
+    // Header
+    doc.setFontSize(24);
+    doc.setTextColor(37, 99, 235);
+    doc.text("VoiceDetector.ai", margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Forensic Audio Analysis Report", margin, yPos);
+    yPos += 15;
+
+    // Classification Badge
+    doc.setFontSize(18);
+    const isHuman = result.classification === "human";
+    doc.setTextColor(isHuman ? 34 : 220, isHuman ? 197 : 38, isHuman ? 94 : 38);
+    doc.text(`Classification: ${isHuman ? "HUMAN VOICE" : "AI-GENERATED"}`, margin, yPos);
+    yPos += 12;
+
+    // Confidence Score
+    doc.setFontSize(36);
+    doc.text(`${result.confidence}%`, margin, yPos);
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Confidence Score", margin + 45, yPos - 5);
+    yPos += 15;
+
+    // Risk Level
+    const riskColor = result.riskLevel === "High" ? [220, 38, 38] : result.riskLevel === "Medium" ? [234, 179, 8] : [34, 197, 94];
+    doc.setTextColor(riskColor[0], riskColor[1], riskColor[2]);
+    doc.setFontSize(14);
+    doc.text(`Risk Level: ${result.riskLevel}`, margin, yPos);
+    yPos += 12;
+
+    // Divider
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 10;
+
+    // File Details
+    doc.setFontSize(14);
+    doc.setTextColor(37, 99, 235);
+    doc.text("File Details", margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`File Name: ${result.fileName}`, margin, yPos);
+    yPos += 6;
+    doc.text(`File Size: ${result.fileSize}`, margin, yPos);
+    yPos += 6;
+    doc.text(`Language: ${result.language} (${result.languageSource})`, margin, yPos);
+    yPos += 6;
+    doc.text(`Timestamp: ${result.timestamp.toLocaleString()}`, margin, yPos);
+    yPos += 12;
+
+    // Expert Reasoning
+    doc.setFontSize(14);
+    doc.setTextColor(37, 99, 235);
+    doc.text("Expert Reasoning", margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    const reasoningLines = doc.splitTextToSize(result.reasoning, pageWidth - 2 * margin);
+    doc.text(reasoningLines, margin, yPos);
+    yPos += reasoningLines.length * 5 + 8;
+
+    // Key Indicators
+    if (result.keyIndicators && result.keyIndicators.length > 0) {
+      doc.setFontSize(14);
+      doc.setTextColor(37, 99, 235);
+      doc.text("Key Indicators Detected", margin, yPos);
+      yPos += 8;
+      
+      doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+      result.keyIndicators.forEach((indicator) => {
+        doc.text(`• ${indicator}`, margin + 5, yPos);
+        yPos += 6;
+      });
+      yPos += 6;
+    }
+
+    // Naturalness Markers
+    doc.setFontSize(14);
+    doc.setTextColor(37, 99, 235);
+    doc.text("Naturalness Markers", margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    const markers = [
+      { label: "Prosody and Rhythm", value: result.markers.prosody },
+      { label: "Breath Sound Naturalness", value: result.markers.breath },
+      { label: "Emotional Inflection", value: result.markers.emotion },
+      { label: "Speech Fluency", value: result.markers.fluency },
+    ];
+    
+    markers.forEach((marker) => {
+      const color = marker.value >= 80 ? [34, 197, 94] : marker.value >= 60 ? [234, 179, 8] : [220, 38, 38];
+      doc.setTextColor(60, 60, 60);
+      doc.text(`${marker.label}:`, margin, yPos);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text(`${marker.value}%`, margin + 60, yPos);
+      yPos += 6;
+    });
+    yPos += 6;
+
+    // Recommended Actions
+    if (result.recommendedActions && result.recommendedActions.length > 0) {
+      doc.setFontSize(14);
+      doc.setTextColor(37, 99, 235);
+      doc.text("Recommended Actions", margin, yPos);
+      yPos += 8;
+      
+      doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+      result.recommendedActions.forEach((action) => {
+        const actionLines = doc.splitTextToSize(`• ${action}`, pageWidth - 2 * margin - 5);
+        doc.text(actionLines, margin + 5, yPos);
+        yPos += actionLines.length * 5 + 2;
+      });
+    }
+
+    // Footer
+    yPos = doc.internal.pageSize.getHeight() - 15;
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text("Generated by VoiceDetector.ai - Forensic Audio Analysis", margin, yPos);
+    doc.text(`Report ID: ${result.id}`, pageWidth - margin - 60, yPos);
+
+    // Save PDF
+    const fileName = `VoiceAnalysis_${result.fileName.replace(/\.[^/.]+$/, "")}_${new Date().toISOString().split("T")[0]}.pdf`;
+    doc.save(fileName);
+  };
+
+  if (state === "idle" || state === "ready") {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-border bg-card p-8 text-center shadow-card">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <FileAudio className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <h3 className="mb-2 text-lg font-semibold text-muted-foreground">
+          Ready for Analysis
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Upload or record audio to determine if it's AI or human.
+        </p>
+      </div>
+    );
+  }
+
+  if (state === "analyzing") {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-border bg-card p-8 text-center shadow-card">
+        <div className="relative mb-6">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-primary/20">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          </div>
+        </div>
+        <h3 className="mb-2 text-xl font-semibold text-foreground">
+          Forensic Scan in Progress
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Identifying language and analyzing vocal frequencies...
+          <br />
+          This takes 5-10 seconds.
+        </p>
+      </div>
+    );
+  }
+
+  if (state === "failed") {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+          <AlertTriangle className="h-8 w-8 text-destructive" />
+        </div>
+        <h3 className="mb-2 text-lg font-semibold text-destructive">
+          Analysis Failed
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Could not process the audio. Please try a different file.
+        </p>
+      </div>
+    );
+  }
+
+  if (!result) return null;
+
+  const isHuman = result.classification === "human";
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6 shadow-card animate-fade-in">
+      {/* Header */}
+      <div className="mb-6 flex items-start justify-between">
+        <h3 className="text-xl font-semibold text-foreground">
+          Analysis Report
+        </h3>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+            {result.language.toUpperCase()} ({result.languageSource === "detected" ? "DETECTED" : "SELECTED"})
+          </span>
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            FORENSIC SCAN
+          </span>
+        </div>
+      </div>
+
+      {/* Confidence Score */}
+      <div className="mb-6 text-center">
+        <div
+          className={cn(
+            "mb-2 text-6xl font-bold",
+            isHuman ? "text-success" : "text-destructive"
+          )}
+        >
+          {result.confidence}%
+        </div>
+        <div
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold",
+            isHuman
+              ? "bg-success/10 text-success"
+              : "bg-destructive/10 text-destructive"
+          )}
+        >
+          {isHuman ? <ShieldCheck className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+          {isHuman ? "Authentic (Human)" : "AI-Generated"}
+        </div>
+      </div>
+
+      {/* Risk Level */}
+      <div className="mb-6 flex justify-center">
+        <div
+          className={cn(
+            "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium",
+            result.riskLevel === "High"
+              ? "bg-destructive/10 text-destructive"
+              : result.riskLevel === "Medium"
+              ? "bg-warning/10 text-warning"
+              : "bg-success/10 text-success"
+          )}
+        >
+          <AlertOctagon className="h-4 w-4" />
+          Risk Level: {result.riskLevel}
+        </div>
+      </div>
+
+      {/* Expert Reasoning */}
+      <div className="mb-6 rounded-xl bg-muted/50 p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-primary" />
+          <span className="text-sm font-semibold text-foreground">
+            Expert Reasoning
+          </span>
+        </div>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          {result.reasoning}
+        </p>
+      </div>
+
+      {/* Key Indicators */}
+      {result.keyIndicators && result.keyIndicators.length > 0 && (
+        <div className="mb-6">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Key Indicators Detected
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {result.keyIndicators.map((indicator, index) => (
+              <span
+                key={index}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium",
+                  isHuman
+                    ? "bg-success/10 text-success"
+                    : "bg-destructive/10 text-destructive"
+                )}
+              >
+                {indicator}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Naturalness Markers */}
+      <div className="mb-6 space-y-4">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Naturalness Markers
+        </h4>
+
+        <MarkerBar label="Prosody and Rhythm" value={result.markers.prosody} />
+        <MarkerBar label="Breath Sound Naturalness" value={result.markers.breath} />
+        <MarkerBar label="Emotional Inflection" value={result.markers.emotion} />
+        <MarkerBar label="Speech Fluency" value={result.markers.fluency} />
+      </div>
+
+      {/* Recommended Actions */}
+      {result.recommendedActions && result.recommendedActions.length > 0 && (
+        <div className="mb-6 rounded-xl bg-muted/50 p-4">
+          <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Recommended Actions
+          </h4>
+          <ul className="space-y-2">
+            {result.recommendedActions.map((action, index) => (
+              <li
+                key={index}
+                className="flex items-start gap-2 text-sm text-foreground"
+              >
+                <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />
+                {action}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Download Button */}
+      {showDownload && (
+        <div className="mb-6">
+          <Button
+            onClick={generatePDF}
+            variant="outline"
+            className="w-full gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Download PDF Report
+          </Button>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <ShieldCheck className="h-3 w-3" />
+          Processed Securely
+        </span>
+        <span>VERIFIED BY VOICEDETECTOR V3.0</span>
+      </div>
+    </div>
+  );
+};
+
+const MarkerBar = ({ label, value }: { label: string; value: number }) => {
+  const getColor = (val: number) => {
+    if (val >= 80) return "bg-success";
+    if (val >= 60) return "bg-warning";
+    return "bg-destructive";
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-foreground">{label}</span>
+        <span className={cn("text-sm font-semibold", value >= 80 ? "text-success" : value >= 60 ? "text-warning" : "text-destructive")}>
+          {value}%
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", getColor(value))}
+          style={{ width: `${value}%` }}
+        />
+      </div>
+    </div>
+  );
+};

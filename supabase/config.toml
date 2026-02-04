@@ -1,0 +1,4 @@
+project_id = "vrbfjixguvtyzahcfxvg"
+
+[functions.analyze-voice]
+verify_jwt = false
