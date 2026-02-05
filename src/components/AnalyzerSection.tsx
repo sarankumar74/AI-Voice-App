@@ -1,11 +1,15 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, Link2, Mic, Music, X, AlertCircle } from "lucide-react";
+import { Upload, Link2, Mic, Music, X, AlertCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { AnalysisResult } from "@/pages/Index";
 import { AnalysisReport } from "./AnalysisReport";
 import { useToast } from "@/hooks/use-toast";
+import { useCreditSystem } from "@/hooks/useCreditSystem";
+import { useTestimonialPrompt } from "@/hooks/useTestimonialPrompt";
+import { CreditDisplay } from "./CreditDisplay";
+import { TestimonialPrompt } from "./TestimonialPrompt";
 
 const LANGUAGES = [
   { id: "auto", label: "Auto-Detect" },
@@ -41,6 +45,9 @@ export const AnalyzerSection = ({ onAnalysisComplete }: AnalyzerSectionProps) =>
   const [analysisState, setAnalysisState] = useState<"idle" | "ready" | "analyzing" | "complete" | "failed">("idle");
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { credits, maxCredits, hasCredits, useCredit, isInitialized: creditsInitialized } = useCreditSystem();
+  const { shouldShow: showTestimonial, markAsSubmitted, markAsSkipped, triggerPrompt } = useTestimonialPrompt();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -145,6 +152,18 @@ export const AnalyzerSection = ({ onAnalysisComplete }: AnalyzerSectionProps) =>
   };
 
   const runAnalysis = async () => {
+    if (!hasCredits) {
+      setError("Free usage limit reached. No credits remaining.");
+      return;
+    }
+
+    // Consume credit before analysis
+    const creditUsed = useCredit();
+    if (!creditUsed) {
+      setError("Free usage limit reached. No credits remaining.");
+      return;
+    }
+
     setAnalysisState("analyzing");
     setError(null);
 
@@ -201,6 +220,9 @@ export const AnalyzerSection = ({ onAnalysisComplete }: AnalyzerSectionProps) =>
       setAnalysisResult(result);
       setAnalysisState("complete");
       onAnalysisComplete(result);
+
+      // Trigger testimonial prompt after successful analysis
+      triggerPrompt();
 
       toast({
         title: "Analysis Complete",
@@ -435,14 +457,32 @@ export const AnalyzerSection = ({ onAnalysisComplete }: AnalyzerSectionProps) =>
               )}
             </div>
 
+            {/* Credit Display */}
+            {creditsInitialized && (
+              <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-card">
+                <CreditDisplay credits={credits} maxCredits={maxCredits} />
+                {!hasCredits && (
+                  <div className="flex items-center gap-2 text-sm text-destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>Session limit reached</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Analyze Button */}
             <Button
               onClick={runAnalysis}
-              disabled={!isReady || analysisState === "analyzing"}
+              disabled={!isReady || analysisState === "analyzing" || !hasCredits}
               size="lg"
               className="h-14 w-full rounded-xl gradient-primary text-lg font-semibold shadow-lg transition-all hover:opacity-90 disabled:opacity-50"
             >
-              {analysisState === "analyzing" ? (
+              {!hasCredits ? (
+                <span className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Session Limit Reached
+                </span>
+              ) : analysisState === "analyzing" ? (
                 <span className="flex items-center gap-2">
                   <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24">
                     <circle
@@ -476,6 +516,13 @@ export const AnalyzerSection = ({ onAnalysisComplete }: AnalyzerSectionProps) =>
             />
           </div>
         </div>
+
+        {/* Testimonial Prompt */}
+        <TestimonialPrompt
+          open={showTestimonial}
+          onSubmit={markAsSubmitted}
+          onSkip={markAsSkipped}
+        />
       </div>
     </section>
   );
