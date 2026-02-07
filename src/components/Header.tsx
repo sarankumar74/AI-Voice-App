@@ -12,7 +12,7 @@ export const Header = () => {
             <Shield className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-lg font-semibold text-foreground">
-            VoiceDetector.ai
+            VoiceDetector.AI
           </span>
         </Link>
 
@@ -39,7 +39,7 @@ export const Header = () => {
         </nav>
 
         <Link
-          to="/api"
+          to="https://voicedetectorai-lp.vercel.app/"
           className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-all hover:opacity-90"
         >
           Console
