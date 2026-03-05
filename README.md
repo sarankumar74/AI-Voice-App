@@ -124,8 +124,8 @@ The system generates:
 
 Clone repository:
 ```
-git clone https://github.com/sarankumar74/
-cd 
+git clone  https://github.com/sarankumar74/AI-Voice-Detector-App.git
+cd AI-Voice-Detector-App
 ```
 
 ## Run Locally
